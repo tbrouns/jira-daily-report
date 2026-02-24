@@ -1,0 +1,1 @@
+"""Jira Daily Report package."""

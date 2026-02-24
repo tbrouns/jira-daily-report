@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "jira-daily-report"
+version = "0.1.0"
+description = "Generate daily Jira activity summaries for a month using worklogs and an LLM."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "openai>=1.51.0",
+  "python-dotenv>=1.0.1",
+  "requests>=2.32.0",
+]
+
+[project.scripts]
+jira-daily-report = "jira_daily_report.__main__:main"
+
+[tool.setuptools.packages.find]
+include = ["jira_daily_report*"]
