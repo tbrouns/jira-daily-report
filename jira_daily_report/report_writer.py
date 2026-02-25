@@ -31,10 +31,10 @@ def generate_reports(
 
     working_days = _working_days_in_month(month_window)
     issue_hours_by_day = _issue_hours_by_day(daily_issue_set)
-    month_label = month_window.start.strftime("%Y-%m")
+    month_label = month_window.start.strftime("%Y_%m")
 
     if spreadsheet_format == "csv":
-        spreadsheet_path = reports_dir / f"jira_worklog_{month_label}.csv"
+        spreadsheet_path = reports_dir / f"{month_label}_jira_worklog.csv"
         _write_csv(
             path=spreadsheet_path,
             issue_hours_by_day=issue_hours_by_day,
@@ -42,7 +42,7 @@ def generate_reports(
             jira_base_url=jira_base_url,
         )
     else:
-        spreadsheet_path = reports_dir / f"jira_worklog_{month_label}.xlsx"
+        spreadsheet_path = reports_dir / f"{month_label}_jira_worklog.xlsx"
         _write_xlsx(
             path=spreadsheet_path,
             issue_hours_by_day=issue_hours_by_day,
@@ -50,7 +50,7 @@ def generate_reports(
             jira_base_url=jira_base_url,
         )
 
-    summary_path = reports_dir / f"daily_summary_{month_label}.txt"
+    summary_path = reports_dir / f"{month_label}_daily_summary.txt"
     _write_daily_summary(path=summary_path, summaries_by_day=summaries_by_day)
 
     return ReportPaths(spreadsheet_path=spreadsheet_path, daily_summary_path=summary_path)

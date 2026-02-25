@@ -60,8 +60,8 @@ jira-daily-report --user-email user@example.com --month 2026-01 --summary-char-l
 
 For month `2026-01`, generated files are:
 
-- `reports/jira_worklog_2026-01.xlsx` (or `.csv` with `--spreadsheet-format csv`)
-- `reports/daily_summary_2026-01.txt`
+- `reports/2026_01_jira_worklog.xlsx` (or `.csv` with `--spreadsheet-format csv`)
+- `reports/2026_01_daily_summary.txt`
 
 Spreadsheet report:
 - First column: Jira issue link
