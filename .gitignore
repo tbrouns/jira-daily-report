@@ -31,3 +31,6 @@ htmlcov/
 # IDE/editor files
 .idea/
 .vscode/
+
+# Generated reports
+reports/

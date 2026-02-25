@@ -18,7 +18,4 @@ class LlmSummarizer:
                 {"role": "user", "content": user_prompt},
             ],
         )
-        summary = response.output_text.strip()
-        if not summary:
-            raise RuntimeError("OpenAI response did not include text output")
-        return summary
+        return response.output_text.strip()

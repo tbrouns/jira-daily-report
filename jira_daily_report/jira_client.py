@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from datetime import date
 from typing import Any
@@ -9,6 +10,8 @@ from requests.auth import HTTPBasicAuth
 
 from jira_daily_report.date_utils import as_local_date
 from jira_daily_report.text_extract import adf_to_text
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_ISSUE_FIELDS = [
     "summary",
@@ -63,12 +66,15 @@ class JiraClient:
         timezone: str,
     ) -> DailyIssueSet:
         jql = f'worklogDate >= "{month_start.isoformat()}" AND worklogDate <= "{month_end.isoformat()}"'
+        logger.info("Searching Jira issues with worklogs in range %s to %s", month_start.isoformat(), month_end.isoformat())
 
         issues = self._search_issues(jql=jql, fields=["worklog"])
+        logger.info("Found %d candidate issues from worklog search", len(issues))
 
         by_day: dict[date, dict[str, int]] = {}
         for issue in issues:
             issue_key = issue["key"]
+            logger.info("Fetching worklogs for issue %s", issue_key)
             for worklog in self._get_all_worklogs(issue_key):
                 if not self._is_target_worklog(worklog, target_account_id, target_email):
                     continue
@@ -176,7 +182,9 @@ class JiraClient:
         max_results = 100
         all_issues: list[dict[str, Any]] = []
         next_page_token: str | None = None
-        start_at = 0
+        page_num = 1
+
+        logger.info("Running issue search via /rest/api/3/search/jql")
 
         while True:
             payload = {
@@ -186,25 +194,19 @@ class JiraClient:
             }
             if next_page_token:
                 payload["nextPageToken"] = next_page_token
-            else:
-                # Backward-compatible pagination parameter if nextPageToken is not used by the tenant.
-                payload["startAt"] = start_at
 
             data = self._post("/rest/api/3/search/jql", json=payload)
             issues = data.get("issues", [])
             all_issues.extend(issues)
+            logger.info("Issue search page %d returned %d issues (running total: %d)", page_num, len(issues), len(all_issues))
 
             next_page_token = data.get("nextPageToken")
             if isinstance(next_page_token, str) and next_page_token:
                 if not issues:
                     break
+                page_num += 1
                 continue
 
-            total = data.get("total")
-            if isinstance(total, int):
-                start_at += len(issues)
-                if start_at < total and issues:
-                    continue
             break
 
         return all_issues
@@ -219,6 +221,7 @@ class JiraClient:
         start_at = 0
         max_results = 100
         logs: list[dict[str, Any]] = []
+        page_num = 1
 
         while True:
             data = self._get(
@@ -227,11 +230,19 @@ class JiraClient:
             )
             values = data.get("worklogs", [])
             logs.extend(values)
+            logger.info(
+                "Worklogs page %d for %s returned %d logs (running total: %d)",
+                page_num,
+                issue_key,
+                len(values),
+                len(logs),
+            )
 
             total = int(data.get("total", 0))
             start_at += len(values)
             if start_at >= total or not values:
                 break
+            page_num += 1
 
         return logs
 

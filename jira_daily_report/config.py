@@ -17,6 +17,7 @@ class AppConfig:
     openai_temperature: float
     timezone: str
     system_prompt_path: Path
+    summary_char_limit: int
 
 
 class ConfigError(ValueError):
@@ -33,12 +34,19 @@ def load_config() -> AppConfig:
     openai_model = os.getenv("OPENAI_MODEL", "gpt-4.1")
     timezone = os.getenv("TIMEZONE", "Europe/Amsterdam")
     system_prompt_path = Path(os.getenv("SYSTEM_PROMPT_PATH", "prompts/system_instructions.md"))
+    summary_limit_raw = os.getenv("SUMMARY_CHAR_LIMIT", "1500")
 
     temperature_raw = os.getenv("OPENAI_TEMPERATURE", "0.2")
     try:
         openai_temperature = float(temperature_raw)
     except ValueError as exc:
         raise ConfigError("OPENAI_TEMPERATURE must be a valid float") from exc
+    try:
+        summary_char_limit = int(summary_limit_raw)
+    except ValueError as exc:
+        raise ConfigError("SUMMARY_CHAR_LIMIT must be a valid integer") from exc
+    if summary_char_limit <= 0:
+        raise ConfigError("SUMMARY_CHAR_LIMIT must be greater than 0")
 
     return AppConfig(
         jira_base_url=jira_base_url,
@@ -49,6 +57,7 @@ def load_config() -> AppConfig:
         openai_temperature=openai_temperature,
         timezone=timezone,
         system_prompt_path=system_prompt_path,
+        summary_char_limit=summary_char_limit,
     )
 
 

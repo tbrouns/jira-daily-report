@@ -1,18 +1,25 @@
 from __future__ import annotations
 
 import argparse
+import logging
 import sys
+from datetime import date
 from pathlib import Path
 
 from jira_daily_report.config import ConfigError, load_config
 from jira_daily_report.context_builder import build_daily_prompt
 from jira_daily_report.date_utils import MonthParseError, parse_month
-from jira_daily_report.formatter import format_day_block
 from jira_daily_report.jira_client import JiraClient
 from jira_daily_report.llm import LlmSummarizer
+from jira_daily_report.report_writer import generate_reports
 
 
 def main() -> int:
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
+
     parser = argparse.ArgumentParser(
         prog="jira-daily-report",
         description="Generate daily Jira summaries for days with logged work in a month.",
@@ -23,6 +30,18 @@ def main() -> int:
         help="Target Jira user email (defaults to JIRA_EMAIL from environment).",
     )
     parser.add_argument("--month", required=True, help="Month in YYYY-MM format")
+    parser.add_argument(
+        "--spreadsheet-format",
+        choices=["excel", "csv"],
+        default="excel",
+        help="Spreadsheet format for the worklog report (default: excel).",
+    )
+    parser.add_argument(
+        "--summary-char-limit",
+        type=int,
+        default=None,
+        help="Maximum characters per daily summary (default: 1500).",
+    )
     args = parser.parse_args()
 
     try:
@@ -32,6 +51,12 @@ def main() -> int:
     except (ConfigError, MonthParseError) as exc:
         print(f"Configuration error: {exc}", file=sys.stderr)
         return 2
+
+    summary_char_limit = args.summary_char_limit if args.summary_char_limit is not None else config.summary_char_limit
+    if summary_char_limit <= 0:
+        print("Configuration error: summary character limit must be greater than 0", file=sys.stderr)
+        return 2
+    system_prompt = _with_summary_char_limit(system_prompt, summary_char_limit)
 
     target_user_email = args.user_email or config.jira_email
 
@@ -68,7 +93,7 @@ def main() -> int:
         epic_field_id = jira.detect_epic_link_field_id()
         issues_by_key = jira.get_issue_bundle(all_issue_keys, epic_field_id=epic_field_id)
 
-        output_blocks: list[str] = []
+        summaries_by_day: dict[date, str] = {}
         for day in sorted(daily_issue_set.by_day_issue_seconds):
             issue_seconds = daily_issue_set.by_day_issue_seconds[day]
             day_prompt = build_daily_prompt(
@@ -81,9 +106,22 @@ def main() -> int:
                 target_email=target_user_email,
             )
             summary = llm.summarize_day(system_prompt=system_prompt, user_prompt=day_prompt)
-            output_blocks.append(format_day_block(day=day, issue_seconds=issue_seconds, summary=summary))
+            summary = summary.strip()
+            summary = _truncate_summary(summary, summary_char_limit)
+            if summary:
+                summaries_by_day[day] = summary
 
-        print("\n".join(output_blocks))
+        report_paths = generate_reports(
+            month_window=month_window,
+            daily_issue_set=daily_issue_set,
+            summaries_by_day=summaries_by_day,
+            jira_base_url=config.jira_base_url,
+            reports_dir=Path.cwd() / "reports",
+            spreadsheet_format=args.spreadsheet_format,
+        )
+
+        print(f"Generated spreadsheet report: {report_paths.spreadsheet_path}")
+        print(f"Generated daily summary report: {report_paths.daily_summary_path}")
         return 0
     except Exception as exc:  # noqa: BLE001
         print(f"Execution failed: {exc}", file=sys.stderr)
@@ -97,6 +135,24 @@ def _load_system_prompt(path: Path) -> str:
     if not prompt:
         raise ConfigError(f"System prompt file is empty: {path}")
     return prompt
+
+
+def _with_summary_char_limit(system_prompt: str, summary_char_limit: int) -> str:
+    return (
+        f"{system_prompt}\n"
+        "\n"
+        "Runtime constraints:\n"
+        f"- Maximum {summary_char_limit} characters for the final daily summary text.\n"
+    )
+
+
+def _truncate_summary(summary: str, max_chars: int) -> str:
+    cleaned = summary.strip()
+    if len(cleaned) <= max_chars:
+        return cleaned
+    if max_chars == 1:
+        return cleaned[:1]
+    return cleaned[: max_chars - 1].rstrip() + "…"
 
 
 if __name__ == "__main__":
