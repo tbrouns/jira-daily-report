@@ -23,6 +23,7 @@ def generate_reports(
     month_window: MonthWindow,
     daily_issue_set: DailyIssueSet,
     summaries_by_day: dict[date, str],
+    monthly_overview: str | None,
     jira_base_url: str,
     reports_dir: Path,
     spreadsheet_format: str,
@@ -51,7 +52,7 @@ def generate_reports(
         )
 
     summary_path = reports_dir / f"{month_label}_daily_summary.txt"
-    _write_daily_summary(path=summary_path, summaries_by_day=summaries_by_day)
+    _write_daily_summary(path=summary_path, summaries_by_day=summaries_by_day, monthly_overview=monthly_overview)
 
     return ReportPaths(spreadsheet_path=spreadsheet_path, daily_summary_path=summary_path)
 
@@ -131,8 +132,14 @@ def _write_csv(
             writer.writerow(row)
 
 
-def _write_daily_summary(*, path: Path, summaries_by_day: dict[date, str]) -> None:
+def _write_daily_summary(*, path: Path, summaries_by_day: dict[date, str], monthly_overview: str | None) -> None:
     lines = []
+    overview = (monthly_overview or "").strip()
+    if overview:
+        lines.append("Monthly Overview")
+        lines.append(overview)
+        lines.append("")
+
     for day in sorted(summaries_by_day):
         summary = summaries_by_day[day].strip()
         if not summary:

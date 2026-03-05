@@ -10,6 +10,12 @@ class LlmSummarizer:
         self.temperature = temperature
 
     def summarize_day(self, system_prompt: str, user_prompt: str) -> str:
+        return self._summarize(system_prompt=system_prompt, user_prompt=user_prompt)
+
+    def summarize_month_overview(self, system_prompt: str, user_prompt: str) -> str:
+        return self._summarize(system_prompt=system_prompt, user_prompt=user_prompt)
+
+    def _summarize(self, system_prompt: str, user_prompt: str) -> str:
         response = self.client.responses.create(
             model=self.model,
             temperature=self.temperature,

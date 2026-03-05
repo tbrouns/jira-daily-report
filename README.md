@@ -69,6 +69,10 @@ Spreadsheet report:
 - Each issue row contains decimal hours per day for that issue
 
 Daily summary report:
+- Starts with a short monthly overview section (3-5 high-level bullets):
+  - where most work was spent
+  - what is finalized
+  - what work has started
 - One entry per day with summarized work
 - Format starts with day prefix: `YYYY-MM-DD - `
 - Summary body is prompt-driven and grouped by unique `Project - Epic` preface where possible

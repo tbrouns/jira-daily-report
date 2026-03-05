@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import date
 from typing import Any
 
+from jira_daily_report.date_utils import MonthWindow
 from jira_daily_report.jira_client import JiraClient
 
 
@@ -73,6 +74,28 @@ def build_daily_prompt(
     ]
 
     return "\n\n".join(["\n".join(header)] + issue_sections)
+
+
+def build_month_overview_prompt(*, month_window: MonthWindow, summaries_by_day: dict[date, str]) -> str:
+    month_label = month_window.start.strftime("%Y-%m")
+    lines = [
+        f"Target Month: {month_label}",
+        "Create one concise monthly overview using the provided daily summaries.",
+        "Focus on where the most effort was spent, what is finalized, and what has started.",
+        "Output only 3-5 bullet points.",
+        "Keep bullets high-level and omit implementation details.",
+        "Do not include date markers.",
+        "",
+        "Daily Summaries:",
+    ]
+
+    for day in sorted(summaries_by_day):
+        summary = summaries_by_day[day].strip()
+        if not summary:
+            continue
+        lines.append(f"{day.isoformat()} - {summary}")
+
+    return "\n".join(lines).strip()
 
 
 def _extract_epic_key(fields: dict[str, Any], epic_field_id: str | None) -> str | None:

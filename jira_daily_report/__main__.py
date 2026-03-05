@@ -7,7 +7,7 @@ from datetime import date
 from pathlib import Path
 
 from jira_daily_report.config import ConfigError, load_config
-from jira_daily_report.context_builder import build_daily_prompt
+from jira_daily_report.context_builder import build_daily_prompt, build_month_overview_prompt
 from jira_daily_report.date_utils import MonthParseError, parse_month
 from jira_daily_report.jira_client import JiraClient
 from jira_daily_report.llm import LlmSummarizer
@@ -111,10 +111,20 @@ def main() -> int:
             if summary:
                 summaries_by_day[day] = summary
 
+        monthly_overview: str | None = None
+        if summaries_by_day:
+            month_prompt = build_month_overview_prompt(month_window=month_window, summaries_by_day=summaries_by_day)
+            monthly_overview = llm.summarize_month_overview(
+                system_prompt=_month_overview_system_prompt(),
+                user_prompt=month_prompt,
+            )
+            monthly_overview = _normalize_monthly_overview(monthly_overview)
+
         report_paths = generate_reports(
             month_window=month_window,
             daily_issue_set=daily_issue_set,
             summaries_by_day=summaries_by_day,
+            monthly_overview=monthly_overview,
             jira_base_url=config.jira_base_url,
             reports_dir=Path.cwd() / "reports",
             spreadsheet_format=args.spreadsheet_format,
@@ -153,6 +163,38 @@ def _truncate_summary(summary: str, max_chars: int) -> str:
     if max_chars == 1:
         return cleaned[:1]
     return cleaned[: max_chars - 1].rstrip() + "…"
+
+
+def _month_overview_system_prompt() -> str:
+    return (
+        "You write concise monthly project overviews from daily summaries.\n"
+        "\n"
+        "Output contract:\n"
+        "- Output plain text only.\n"
+        "- Output only 3-5 bullet points, each line starting with '- '.\n"
+        "- Keep bullets very high-level and outcome-oriented.\n"
+        "- Focus on where most work was spent, what is finalized, and what work has started.\n"
+        "- No implementation details.\n"
+        "- No date markers or time-window qualifiers.\n"
+        "- Do not invent facts.\n"
+    )
+
+
+def _normalize_monthly_overview(text: str) -> str:
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    if not lines:
+        return ""
+
+    bullet_lines: list[str] = []
+    for line in lines:
+        stripped = line.lstrip("-*0123456789. ").strip()
+        if not stripped:
+            continue
+        bullet_lines.append(f"- {stripped}")
+        if len(bullet_lines) == 5:
+            break
+
+    return "\n".join(bullet_lines)
 
 
 if __name__ == "__main__":
