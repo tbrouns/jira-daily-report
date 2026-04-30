@@ -12,6 +12,9 @@ from jira_daily_report.date_utils import MonthParseError, parse_month
 from jira_daily_report.jira_client import JiraClient
 from jira_daily_report.llm import LlmSummarizer
 from jira_daily_report.report_writer import generate_reports
+from jira_daily_report.worklog_cache import WorklogCache
+
+logger = logging.getLogger(__name__)
 
 
 def main() -> int:
@@ -59,6 +62,8 @@ def main() -> int:
     system_prompt = _with_summary_char_limit(system_prompt, summary_char_limit)
 
     target_user_email = args.user_email or config.jira_email
+    cache = WorklogCache(Path.cwd() / ".cache" / "jira_daily_report")
+    cache_month = month_window.start.strftime("%Y-%m")
 
     jira = JiraClient(
         base_url=config.jira_base_url,
@@ -77,15 +82,35 @@ def main() -> int:
         if not account_id:
             raise RuntimeError(f"Resolved user missing accountId for {target_user_email}")
 
-        daily_issue_set = jira.get_issue_keys_with_worklogs_for_month(
-            month_start=month_window.start,
-            month_end=month_window.end,
-            target_account_id=account_id,
-            target_email=target_user_email,
+        daily_issue_set = cache.load(
+            month=cache_month,
+            target_user_email=target_user_email,
             timezone=config.timezone,
         )
+        if daily_issue_set is None:
+            daily_issue_set = jira.get_issue_keys_with_worklogs_for_month(
+                month_start=month_window.start,
+                month_end=month_window.end,
+                target_account_id=account_id,
+                target_email=target_user_email,
+                timezone=config.timezone,
+            )
+            cache_path = cache.save(
+                month=cache_month,
+                target_user_email=target_user_email,
+                timezone=config.timezone,
+                daily_issue_set=daily_issue_set,
+            )
+            logger.info("Saved worklog cache to %s", cache_path)
+        else:
+            logger.info(
+                "Loaded cached worklogs for %s %s",
+                target_user_email,
+                cache_month,
+            )
 
         if not daily_issue_set.by_day_issue_seconds:
+            cache.delete(month=cache_month, target_user_email=target_user_email)
             print("No worklog activity found for the selected user/month.")
             return 0
 
@@ -132,6 +157,7 @@ def main() -> int:
 
         print(f"Generated spreadsheet report: {report_paths.spreadsheet_path}")
         print(f"Generated daily summary report: {report_paths.daily_summary_path}")
+        cache.delete(month=cache_month, target_user_email=target_user_email)
         return 0
     except Exception as exc:  # noqa: BLE001
         print(f"Execution failed: {exc}", file=sys.stderr)

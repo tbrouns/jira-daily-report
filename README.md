@@ -20,6 +20,7 @@ Generate monthly Jira reports for a selected user by combining Jira issue/worklo
   - daily plain text summary report
 - Applies a per-day summary character limit (default: `1500`) with truncation as last resort
 - Summary output is high-level and grouped by unique `Project - Epic` preface (when available)
+- Persists retrieved month worklogs in `.cache/jira_daily_report/` until report generation completes successfully
 
 ## Setup
 
@@ -95,3 +96,4 @@ Daily summary report:
 - User lookup by email depends on Jira visibility permissions.
 - The tool keeps full plain text from Jira rich text fields and ignores non-text-only rendering concerns.
 - If Jira context has no meaningful completed work for a day, that day can be omitted from the summary report.
+- If a run fails after worklogs have been fetched, the next run reuses the cached worklog snapshot instead of refetching it from Jira.
