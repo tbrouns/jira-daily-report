@@ -34,3 +34,6 @@ htmlcov/
 
 # Generated reports
 reports/
+
+# Cached Jira worklog snapshots for failed/incomplete runs
+.cache/jira_daily_report/
